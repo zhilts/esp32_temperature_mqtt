@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 
+#define NUM_READS 100
+
 int sensorPinPlus = 34;
 int sensorPinMinus = 35;
 float sensorValuePlus = 0;
@@ -19,14 +21,36 @@ PubSubClient client(espClient);
 float voltage = 0;
 float temperature = 0;
 
-int filterLen = 1000;
-
 float analogReadAvg(int pin) {
-    float sum = 0;
-    for (int i = 0; i < filterLen; i++) {
-        sum += analogRead(pin);
+    // read multiple values and sort them to take the mode
+    int sortedValues[NUM_READS];
+    for (int i = 0; i < NUM_READS; i++) {
+        delay(25);
+        int value = analogRead(pin);
+        int j;
+        if (value < sortedValues[0] || i == 0) {
+            j = 0; //insert at first position
+        }
+        else {
+            for (j = 1; j < i; j++) {
+                if (sortedValues[j - 1] <= value && sortedValues[j] >= value) {
+                    // j is insert position
+                    break;
+                }
+            }
+        }
+        for (int k = i; k > j; k--) {
+            // move all values higher than current reading up one position
+            sortedValues[k] = sortedValues[k - 1];
+        }
+        sortedValues[j] = value; //insert current reading
     }
-    return sum / filterLen;
+    //return scaled mode of 10 values
+    float returnval = 0;
+    for (int i = NUM_READS / 2 - 5; i < (NUM_READS / 2 + 5); i++) {
+        returnval += sortedValues[i];
+    }
+    return returnval / 10;
 }
 
 void setup_wifi() {
@@ -123,8 +147,9 @@ void loop() {
 
     char buffer[32];
     memset(buffer, 0x00, sizeof(buffer));
-    snprintf(buffer, sizeof(buffer), "%.4f", temperature);
-    client.publish("temp", buffer);
+    snprintf(buffer, sizeof(buffer), "%.2f", temperature);
+    client.publish("esp/temp", buffer);
 
-    delay(3000);
+    delay(10 * 60 * 1000); // fixme: replace with timer
+//    delay(300);
 }
