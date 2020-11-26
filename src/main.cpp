@@ -2,8 +2,10 @@
 #include <Secrets.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
-#define NUM_READS 100
+#define NUM_READS 10
 
 int sensorPinPlus = 34;
 int sensorPinMinus = 35;
@@ -30,8 +32,7 @@ float analogReadAvg(int pin) {
         int j;
         if (value < sortedValues[0] || i == 0) {
             j = 0; //insert at first position
-        }
-        else {
+        } else {
             for (j = 1; j < i; j++) {
                 if (sortedValues[j - 1] <= value && sortedValues[j] >= value) {
                     // j is insert position
@@ -87,9 +88,9 @@ void reconnect() {
         if (client.connect(clientId.c_str())) {
             Serial.println("connected");
             // Once connected, publish an announcement...
-            client.publish("outTopic", "hello world");
+            client.publish("esp/id", clientId.c_str(), true);
             // ... and resubscribe
-            client.subscribe("inTopic");
+            client.subscribe("esp/input");
         } else {
             Serial.print("failed, rc=");
             Serial.print(client.state());
@@ -108,28 +109,42 @@ void callback(char *topic, byte *payload, unsigned int length) {
         Serial.print((char) payload[i]);
     }
     Serial.println();
-
-    // Switch on the LED if an 1 was received as first character
-    if ((char) payload[0] == '1') {
-        digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-        // but actually the LED is on; this is because
-        // it is active low on the ESP-01)
-        Serial.println("Set low");
-    } else {
-        digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-        Serial.println("Set hight");
-    }
-
 }
 
 void setup() {
     pinMode(sensorPinPlus, INPUT);
     pinMode(sensorPinMinus, INPUT);
-    pinMode(BUILTIN_LED, OUTPUT);
     Serial.begin(9600);
     setup_wifi();
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
+}
+
+String getDateTime() {
+    String result = "";
+    HTTPClient http;
+    http.begin("http://worldclockapi.com/api/json/utc/now");
+    int httpResponseCode = http.GET();
+    if (httpResponseCode > 0) {
+        String payload = http.getString();
+        StaticJsonDocument<400> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+        if (error) {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            result = String("deserializeJson() failed: ") + String(error.f_str());
+        } else {
+            const char *currentDateTime = doc["currentDateTime"];
+            result = String(currentDateTime);
+        }
+    } else {
+        Serial.print("Error code: ");
+        Serial.println(httpResponseCode);
+        result = "http error: " + String(httpResponseCode);
+    }
+    // Free resources
+    http.end();
+    return result;
 }
 
 void loop() {
@@ -143,12 +158,16 @@ void loop() {
     sensorValue = sensorValuePlus - sensorValueMinus;
     voltage = sensorValue * adcV / adcResolutionMax;
     temperature = voltage / voltageStep;
-    Serial.println(temperature);
 
-    char buffer[32];
-    memset(buffer, 0x00, sizeof(buffer));
-    snprintf(buffer, sizeof(buffer), "%.2f", temperature);
-    client.publish("esp/temp", buffer);
+    char tempChar[32];
+    memset(tempChar, 0x00, sizeof(tempChar));
+    snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
+    client.publish("esp/temp", tempChar, true);
+    String now = getDateTime();
+    client.publish("esp/time", now.c_str(), true);
+    client.publish("esp/timer", String(millis()).c_str(), true);
+
+    Serial.println(now + ": " + String(tempChar));
 
     delay(10 * 60 * 1000); // fixme: replace with timer
 //    delay(300);
