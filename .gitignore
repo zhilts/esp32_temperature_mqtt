@@ -3,3 +3,6 @@ CMakeListsPrivate.txt
 cmake-build-*/ 
 
 /src/Secrets.h
+
+.idea
+.vscode
