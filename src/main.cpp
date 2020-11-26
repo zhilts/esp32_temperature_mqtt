@@ -162,7 +162,7 @@ void loop() {
     char tempChar[32];
     memset(tempChar, 0x00, sizeof(tempChar));
     snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
-    client.publish("esp/temp", tempChar, true);
+    client.publish("esp/temperature", tempChar, true);
     String now = getDateTime();
     client.publish("esp/time", now.c_str(), true);
     client.publish("esp/timer", String(millis()).c_str(), true);
