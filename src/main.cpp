@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <Secrets.h>
+#include "Secrets.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <HTTPClient.h>
@@ -18,7 +18,7 @@ float voltageStep = 0.01;
 const char *mqtt_server = "192.168.1.150";
 
 WiFiClient espClient;
-PubSubClient client(espClient);
+PubSubClient client((Client &)espClient);
 
 float voltage = 0;
 float temperature = 0;
@@ -148,26 +148,26 @@ String getDateTime() {
 }
 
 void loop() {
-    if (!client.connected()) {
-        reconnect();
-    }
-    client.loop();
-
     sensorValuePlus = analogReadAvg(sensorPinPlus);
     sensorValueMinus = analogReadAvg(sensorPinMinus);
     sensorValue = sensorValuePlus - sensorValueMinus;
-    voltage = sensorValue * adcV / adcResolutionMax;
+    voltage = sensorValue * adcV / (float)adcResolutionMax;
     temperature = voltage / voltageStep;
 
     char tempChar[32];
     memset(tempChar, 0x00, sizeof(tempChar));
     snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
-    client.publish("esp/temperature", tempChar, true);
     String now = getDateTime();
+
+    reconnect();
+    client.loop();
+    client.publish("esp/temperature", tempChar, true);
     client.publish("esp/time", now.c_str(), true);
     client.publish("esp/timer", String(millis()).c_str(), true);
 
     Serial.println(now + ": " + String(tempChar));
+
+    client.disconnect();
 
     delay(10 * 60 * 1000); // fixme: replace with timer
 //    delay(300);
