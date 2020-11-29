@@ -1,173 +1,49 @@
 #include <Arduino.h>
-#include "Secrets.h"
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
+#include "networking.h"
+#include "datetime.h"
+#include "mqtt.h"
+#include "utils.h"
+#include "TemperatureSensor.h"
 
-#define NUM_READS 10
+#define TEMP_PIN_PLUS 34
+#define TEMP_PIN_MINUS 35
 
-int sensorPinPlus = 34;
-int sensorPinMinus = 35;
-float sensorValuePlus = 0;
-float sensorValueMinus = 0;
-float sensorValue = 0;
-float adcV = 3.3;
-int adcResolutionMax = 4095;
-float voltageStep = 0.01;
-const char *mqtt_server = "192.168.1.150";
-
-WiFiClient espClient;
-PubSubClient client((Client &)espClient);
-
-float voltage = 0;
 float temperature = 0;
-
-float analogReadAvg(int pin) {
-    // read multiple values and sort them to take the mode
-    int sortedValues[NUM_READS];
-    for (int i = 0; i < NUM_READS; i++) {
-        delay(25);
-        int value = analogRead(pin);
-        int j;
-        if (value < sortedValues[0] || i == 0) {
-            j = 0; //insert at first position
-        } else {
-            for (j = 1; j < i; j++) {
-                if (sortedValues[j - 1] <= value && sortedValues[j] >= value) {
-                    // j is insert position
-                    break;
-                }
-            }
-        }
-        for (int k = i; k > j; k--) {
-            // move all values higher than current reading up one position
-            sortedValues[k] = sortedValues[k - 1];
-        }
-        sortedValues[j] = value; //insert current reading
-    }
-    //return scaled mode of 10 values
-    float returnval = 0;
-    for (int i = NUM_READS / 2 - 5; i < (NUM_READS / 2 + 5); i++) {
-        returnval += sortedValues[i];
-    }
-    return returnval / 10;
-}
-
-void setup_wifi() {
-    delay(10);
-    // We start by connecting to a WiFi network
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(WIFI_SSID);
-
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    randomSeed(micros());
-
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-}
-
-void reconnect() {
-    // Loop until we're reconnected
-    while (!client.connected()) {
-        Serial.print("Attempting MQTT connection...");
-        // Create a random client ID
-        String clientId = "ESP8266Client-";
-        clientId += String(random(0xffff), HEX);
-        // Attempt to connect
-        if (client.connect(clientId.c_str())) {
-            Serial.println("connected");
-            // Once connected, publish an announcement...
-            client.publish("esp/id", clientId.c_str(), true);
-            // ... and resubscribe
-            client.subscribe("esp/input");
-        } else {
-            Serial.print("failed, rc=");
-            Serial.print(client.state());
-            Serial.println(" try again in 5 seconds");
-            // Wait 5 seconds before retrying
-            delay(5000);
-        }
-    }
-}
-
-void callback(char *topic, byte *payload, unsigned int length) {
-    Serial.print("Message arrived [");
-    Serial.print(topic);
-    Serial.print("] ");
-    for (int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
-    }
-    Serial.println();
-}
+TemperatureSensor tempSensor;
+MQTTClient mqttClient;
 
 void setup() {
-    pinMode(sensorPinPlus, INPUT);
-    pinMode(sensorPinMinus, INPUT);
     Serial.begin(9600);
     setup_wifi();
-    client.setServer(mqtt_server, 1883);
-    client.setCallback(callback);
-}
-
-String getDateTime() {
-    String result = "";
-    HTTPClient http;
-    http.begin("http://worldclockapi.com/api/json/utc/now");
-    int httpResponseCode = http.GET();
-    if (httpResponseCode > 0) {
-        String payload = http.getString();
-        StaticJsonDocument<400> doc;
-        DeserializationError error = deserializeJson(doc, payload);
-        if (error) {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            result = String("deserializeJson() failed: ") + String(error.f_str());
-        } else {
-            const char *currentDateTime = doc["currentDateTime"];
-            result = String(currentDateTime);
-        }
-    } else {
-        Serial.print("Error code: ");
-        Serial.println(httpResponseCode);
-        result = "http error: " + String(httpResponseCode);
-    }
-    // Free resources
-    http.end();
-    return result;
+    String macAddress = getMacAddress();
+    Serial.println("MAC: " + macAddress);
+    mqttClient.init(macAddress);
+    Serial.println("1");
+    tempSensor.init(TEMP_PIN_PLUS, TEMP_PIN_MINUS);
+    Serial.println("2");
 }
 
 void loop() {
-    sensorValuePlus = analogReadAvg(sensorPinPlus);
-    sensorValueMinus = analogReadAvg(sensorPinMinus);
-    sensorValue = sensorValuePlus - sensorValueMinus;
-    voltage = sensorValue * adcV / (float)adcResolutionMax;
-    temperature = voltage / voltageStep;
+    Serial.println("3");
+    temperature = tempSensor.getValue();
+    Serial.println("4");
+    String temperatureStr = floatToString(temperature);
+    Serial.println("5");
+    String now = getNowStr();
+    Serial.println("6");
 
-    char tempChar[32];
-    memset(tempChar, 0x00, sizeof(tempChar));
-    snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
-    String now = getDateTime();
+    mqttClient.reconnect();
+    Serial.println("7");
+    mqttClient.loop();
+    Serial.println("8");
 
-    reconnect();
-    client.loop();
-    client.publish("esp/temperature", tempChar, true);
-    client.publish("esp/time", now.c_str(), true);
-    client.publish("esp/timer", String(millis()).c_str(), true);
+    mqttClient.publish("temperature", temperatureStr);
+    mqttClient.publish("time", now);
+    mqttClient.publish("timer", String(millis()));
 
-    Serial.println(now + ": " + String(tempChar));
+    Serial.println(now + ": " + temperatureStr);
 
-    client.disconnect();
+    mqttClient.disconnect();
 
     delay(10 * 60 * 1000); // fixme: replace with timer
 //    delay(300);
