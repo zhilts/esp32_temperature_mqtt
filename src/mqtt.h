@@ -26,5 +26,5 @@ public:
 
 private:
     String id;
-    PubSubClient pubSubClient;
+//    PubSubClient pubSubClient;
 };

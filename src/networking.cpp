@@ -25,6 +25,8 @@ void setup_wifi() {
 
     Serial.println("");
     Serial.println("WiFi connected");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
 }
 
 String getMacAddress() {
