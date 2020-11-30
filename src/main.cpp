@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "Secrets.h"
+#include "MQTTClient.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <HTTPClient.h>
@@ -19,6 +20,7 @@ const char *mqtt_server = "192.168.1.150";
 
 WiFiClient espClient;
 PubSubClient client((Client &)espClient);
+MQTTClient * mqttClient;
 
 float voltage = 0;
 float temperature = 0;
@@ -118,6 +120,7 @@ void setup() {
     setup_wifi();
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
+    mqttClient = new MQTTClient();
 }
 
 String getDateTime() {
@@ -159,7 +162,7 @@ void loop() {
     snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
     String now = getDateTime();
 
-    reconnect();
+    mqttClient->reconnect();
     client.loop();
     client.publish("esp/temperature", tempChar, true);
     client.publish("esp/time", now.c_str(), true);
@@ -169,6 +172,6 @@ void loop() {
 
     client.disconnect();
 
-    delay(10 * 60 * 1000); // fixme: replace with timer
-//    delay(300);
+//    delay(10 * 60 * 1000); // fixme: replace with timer
+    delay(300);
 }
