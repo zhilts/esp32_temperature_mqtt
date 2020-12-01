@@ -10,8 +10,9 @@ MQTTClient::MQTTClient() {
     pubSubClient = new PubSubClient((Client &)espClient);
 }
 
-void MQTTClient::reconnect() {
-    PubSubClient client = *this->pubSubClient;
+void MQTTClient::reconnect(PubSubClient* clientL) {
+    PubSubClient client = *clientL;
+//    PubSubClient client = *this->pubSubClient;
     while (!client.connected()) {
         Serial.print("Attempting MQTT connection...");
         // Create a random client ID

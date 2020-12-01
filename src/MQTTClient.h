@@ -11,7 +11,7 @@
 class MQTTClient {
 public:
     MQTTClient();
-    void reconnect();
+    void reconnect(PubSubClient *client);
 
 private:
     PubSubClient * pubSubClient;

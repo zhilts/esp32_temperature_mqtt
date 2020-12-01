@@ -19,9 +19,10 @@ float voltageStep = 0.01;
 const char *mqtt_server = "192.168.1.150";
 
 WiFiClient espClient;
-PubSubClient client((Client &)espClient);
-MQTTClient * mqttClient;
 
+PubSubClient clientV = PubSubClient((Client &) espClient);
+PubSubClient *clientL = new PubSubClient((Client &) espClient);
+MQTTClient *mqttClient;
 float voltage = 0;
 float temperature = 0;
 
@@ -80,13 +81,18 @@ void setup_wifi() {
 }
 
 void reconnect() {
+//    PubSubClient client = *clientL;
+    PubSubClient client = clientV;
     // Loop until we're reconnected
+    Serial.print("Is connected: ");
+    Serial.println(client.connected());
     while (!client.connected()) {
         Serial.print("Attempting MQTT connection...");
         // Create a random client ID
         String clientId = "ESP8266Client-";
         clientId += String(random(0xffff), HEX);
         // Attempt to connect
+        Serial.println(clientId);
         if (client.connect(clientId.c_str())) {
             Serial.println("connected");
             // Once connected, publish an announcement...
@@ -114,13 +120,15 @@ void callback(char *topic, byte *payload, unsigned int length) {
 }
 
 void setup() {
+//    PubSubClient client = *clientL;
+    PubSubClient client = clientV;
     pinMode(sensorPinPlus, INPUT);
     pinMode(sensorPinMinus, INPUT);
     Serial.begin(9600);
     setup_wifi();
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
-    mqttClient = new MQTTClient();
+//    mqttClient = new MQTTClient();
 }
 
 String getDateTime() {
@@ -151,10 +159,11 @@ String getDateTime() {
 }
 
 void loop() {
+    PubSubClient client = *clientL;
     sensorValuePlus = analogReadAvg(sensorPinPlus);
     sensorValueMinus = analogReadAvg(sensorPinMinus);
     sensorValue = sensorValuePlus - sensorValueMinus;
-    voltage = sensorValue * adcV / (float)adcResolutionMax;
+    voltage = sensorValue * adcV / (float) adcResolutionMax;
     temperature = voltage / voltageStep;
 
     char tempChar[32];
@@ -162,7 +171,10 @@ void loop() {
     snprintf(tempChar, sizeof(tempChar), "%.2f", temperature);
     String now = getDateTime();
 
-    mqttClient->reconnect();
+//    mqttClient->reconnect(clientL);
+    Serial.println("before reconnect");
+    reconnect();
+    Serial.println("after reconnect");
     client.loop();
     client.publish("esp/temperature", tempChar, true);
     client.publish("esp/time", now.c_str(), true);
