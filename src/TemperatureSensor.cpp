@@ -22,5 +22,5 @@ float TemperatureSensor::getValue() {
     float sensorValueMinus = analogReadAvg(this->pinMinus);
     float sensorValue = sensorValuePlus - sensorValueMinus;
     float voltage = sensorValue * this->voltK;
-    return voltage * 0.01;
+    return voltage / 0.01;
 }
