@@ -3,6 +3,7 @@
 //
 #include <Arduino.h>
 #include <PubSubClient.h>
+#include <WiFi.h>
 
 #ifndef TEMPERATURE_TO_MQTT_MQTT_H
 #define TEMPERATURE_TO_MQTT_MQTT_H
@@ -26,5 +27,6 @@ public:
 
 private:
     String id;
-//    PubSubClient pubSubClient;
+    WiFiClient* espClient = NULL;
+    PubSubClient* pubSubClient = NULL;
 };

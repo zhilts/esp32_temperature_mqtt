@@ -19,44 +19,41 @@ void callback(char *topic, byte *payload, unsigned int length) {
 }
 
 MQTTClient::MQTTClient() {
-
-
+    espClient = new WiFiClient();
+    pubSubClient = new PubSubClient((Client &) *espClient);
 }
 
 void MQTTClient::init(String uid) {
-//    WiFiClient espClient;
-//    pubSubClient = PubSubClient((Client &) espClient);
-    Serial.print("Constructor: ");
-//    Serial.println((int)&pubSubClient);
     id = "esp32-" + uid;
-//    pubSubClient.setServer(MQTT_SERVER_HOST, MQTT_SERVER_PORT);
-//    pubSubClient.setCallback(callback);
+    Serial.println("Constructor: " + this->id);
+    pubSubClient->setServer(MQTT_SERVER_HOST, MQTT_SERVER_PORT);
+    pubSubClient->setCallback(callback);
 }
 
 void MQTTClient::reconnect() {
-//    while (!pubSubClient.connected()) {
-//        Serial.print("Attempting MQTT connection...");
-//        if (pubSubClient.connect(this->id.c_str())) {
-//            Serial.println("connected");
-//            pubSubClient.publish("esp/id", this->id.c_str(), true);
-//        } else {
-//            Serial.print("failed, rc=");
-//            Serial.print(pubSubClient.state());
-//            Serial.println(" try again in 5 seconds");
-//            // Wait 5 seconds before retrying
-//            delay(5000);
-//        }
-//    }
+    while (!pubSubClient->connected()) {
+        Serial.print("Attempting MQTT connection...");
+        if (pubSubClient->connect((char *)"ESP8266Client-1234")) {
+            Serial.println("connected");
+            pubSubClient->publish("esp/id", this->id.c_str(), true);
+        } else {
+            Serial.print("failed, rc=");
+            Serial.print(pubSubClient->state());
+            Serial.println(" try again in 5 seconds");
+            // Wait 5 seconds before retrying
+            delay(5000);
+        }
+    }
 }
 
 void MQTTClient::disconnect() {
-//    pubSubClient.disconnect();
+    pubSubClient->disconnect();
 }
 
 void MQTTClient::loop() {
-//    pubSubClient.loop();
+    pubSubClient->loop();
 }
 
 void MQTTClient::publish(const String &key, const String &value) {
-//    pubSubClient.publish(("esp/" + key).c_str(), value.c_str(), true);
+    pubSubClient->publish(("esp/" + key).c_str(), value.c_str(), true);
 }
