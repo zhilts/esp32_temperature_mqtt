@@ -10,7 +10,6 @@
 String getNowStr() {
     String result = "";
     HTTPClient http;
-    http.begin("http://worldclockapi.com/api/json/utc/now");
     http.begin("http://worldtimeapi.org/api/ip");
     int httpResponseCode = http.GET();
     if (httpResponseCode > 0) {
@@ -18,9 +17,8 @@ String getNowStr() {
         StaticJsonDocument<800> doc;
         DeserializationError error = deserializeJson(doc, payload);
         if (error) {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            result = String("deserializeJson() failed: ") + String(error.f_str());
+            result = String("deserializeJson() failed: ") + String(error.f_str()) + ". Body: " + payload;
+            Serial.println(result);
         } else {
             const char *currentDateTime = doc["datetime"];
             result = String(currentDateTime);
